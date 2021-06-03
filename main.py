@@ -4,7 +4,7 @@ from pathlib import Path
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from fifaOPTI import investment_outcome, club_score
+from fifaOPTI import optimal_team, investment_outcome, club_score
 # ------------------------------------------------------------------------------------
 # 2- DATA LOADING
 # ------------------------------------------------------------------------------------
@@ -12,7 +12,7 @@ from fifaOPTI import investment_outcome, club_score
 fifa_original = pd.read_csv(Path.cwd() / 'input' / 'data_fifa.csv')
 fifa = fifa_original.copy()
 # Indicate path where pdf figures should be created
-path_out = Path.cwd() / 'Output'
+path_out = Path.cwd() / 'output'
 path_out.mkdir(exist_ok=True)
 path_opt = Path.cwd() / 'Optimization'
 path_opt.mkdir(exist_ok=True)
@@ -32,37 +32,34 @@ def clean_value(value_string):
         return float(value_string)
 
 
-fifa["Value_clean"] = fifa.Value.map(lambda x: clean_value(re.sub(r'€', '', x)))
-fifa["Wage_clean"] = fifa.Wage.map(lambda x: clean_value(re.sub(r'€', '', x)))
+# Delete euro symbol
+fifa["Value_clean"] = fifa.Value.map(lambda x: clean_value(re.sub(u"\u20AC", '', x)))
+fifa["Wage_clean"] = fifa.Wage.map(lambda x: clean_value(re.sub(u"\u20AC", '', x)))
 
-# -------------------------------------------------------------------------------
-# MAIN
-# -------------------------------------------------------------------------------
 # Calculate optimal team with:
 #       + *score* as Special/Overall attribute
 #       + total_budget
 #       + formation
 # Example:
-#    -> print(optimal_team(total_budget=10**6, goodness_score="Special", formation="1442"))
+# TODO: solve infeasible problem error
+print(optimal_team(fifa, total_budget=10**6, goodness_score="Overall", formation="1442"))
 
 # > Plot mean optimal score for different total budgets
 # >> With Special
-
-
-investment_outcome(num=40,goodness_score="Special", formation="1442",lines={"color":"mediumseagreen","lty":"-"})
-investment_outcome(num=40,goodness_score="Special", formation="1433",lines={"color":"mediumturquoise","lty":"-"})
+investment_outcome(fifa, num=40, goodness_score="Special", formation="1442", lines={"color": "mediumseagreen", "lty":"-"})
+investment_outcome(fifa, num=40, goodness_score="Special", formation="1433", lines={"color": "mediumturquoise", "lty":"-"})
 plt.title("Investment vs. Optimal Team's mean Special")
-plt.xlabel("Total Budget (M€)")
+plt.xlabel(u"Total Budget (M\u20AC)")
 plt.ylabel("Mean Special")
 plt.ylim(1150, 2300)
 plt.legend(loc='lower right')
 plt.savefig(path_opt / "InvestmentEvolutionSpecial.pdf")
 plt.close()
 # >> With Overall
-investment_outcome(num=40,goodness_score="Overall", formation="1442",lines={"color":"mediumseagreen","lty":"-"})
-investment_outcome(num=40,goodness_score="Overall", formation="1433",lines={"color":"mediumturquoise","lty":"-"})
+investment_outcome(fifa, num=40, goodness_score="Overall", formation="1442",lines={"color": "mediumseagreen", "lty": "-"})
+investment_outcome(fifa, num=40, goodness_score="Overall", formation="1433",lines={"color": "mediumturquoise", "lty": "-"})
 plt.title("Investment vs. Optimal Team's mean Overall")
-plt.xlabel("Total Budget (M€)")
+plt.xlabel(u"Total Budget (M\u20AC)")
 plt.ylabel("Mean Overall")
 plt.ylim(50, 90)
 plt.legend(loc='lower right')

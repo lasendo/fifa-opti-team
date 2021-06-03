@@ -28,12 +28,11 @@
 # ------------------------------------------------------------------------------------
 # 1- IMPORTING
 # ------------------------------------------------------------------------------------
-import re
 import statistics
 
 import numpy as np
+import matplotlib.pyplot as plt
 from ortools.linear_solver import pywraplp # optimization module
-import pandas as pd
 
 
 # -------------------------------------------------------------------------------
@@ -42,7 +41,7 @@ import pandas as pd
 # I) Implement model of optimal team (optimal_team function)
 
 
-def optimal_team(total_budget = 10000, goodness_score="Special", formation = "1433"):
+def optimal_team(data, total_budget=10000, goodness_score="Special", formation="1433"):
     """
     Function to calculate the OPTIMAL TEAM given a limited total budget
 
@@ -70,9 +69,10 @@ def optimal_team(total_budget = 10000, goodness_score="Special", formation = "14
 
                 sum( x_{ii,'CB'} all ii in available_CB_players) == 2
 
-
+    :param: data: pandas.DataFrame with the players information
     :param total_budget: the total money to purchase players
-    :param formation: The selected player positioning system on soccer pitch
+    :param goodness_score: the numerical attribute that captures how good players are
+    :param formation: the selected player positioning system on soccer pitch
 
     :return [team_score, spent_budget, remaining_budget]
 
@@ -88,6 +88,7 @@ def optimal_team(total_budget = 10000, goodness_score="Special", formation = "14
     #          + position of players,
     #          + amount of players per position
     formations = ["1433", "1442"]
+    posi_fixed = None
     if formation == "1433":
         posi = ["GK", "CB", "LB", "RB", "CM", "ST"]
         posi_fixed = {"GK": 1, "CB": 2, "LB": 1, "RB": 1, "CM": 3, "ST": 3}
@@ -103,8 +104,8 @@ def optimal_team(total_budget = 10000, goodness_score="Special", formation = "14
     posi_players = {}
     for position in posi:
         # TODO: clarify what is PP
-        if position in PP.keys():
-            posi_players[position] = PP[position]
+        if position in posi_fixed.keys():
+            posi_players[position] = posi_fixed[position]
 
     max_players = max(posi_players.values())
 
@@ -143,11 +144,11 @@ def optimal_team(total_budget = 10000, goodness_score="Special", formation = "14
     scores = {}
     price = {}
     for position in posi:
-        fifa_position_df = fifa[fifa.Position == position]
+        fifa_position_df = data[data['Position'] == position]
         names[position] = fifa_position_df.Name.to_list()
         scores[position] = cancell_score(fifa_position_df[goodness_score].to_list(), max_players)
         aux_value = fifa_position_df.Value.to_list()
-        price[position] = cancell_price(list(map(lambda x: clean_value(x.replace("€", "")), aux_value)), max_players)
+        price[position] = cancell_price(list(map(lambda x: clean_value(x.replace(u"\u20AC", "")), aux_value)), max_players)
 
     # > Some players' value is 0€, to neglect those we change the prize to be
     #    non-affordable
@@ -181,7 +182,8 @@ def optimal_team(total_budget = 10000, goodness_score="Special", formation = "14
     sol = solver.Solve()
     # >> Check feasibility
     if sol == solver.INFEASIBLE:
-        print("The problem is not feasible, there is no solution.")
+        print(f"The problem is not feasible, there is no solution for\n\ta budget of {total_budget}\t'\
+                goodness score '{goodness_score}'\n\t formation '{formation}'")
         raise EnvironmentError("The problem is not feasible")
     elif sol == solver.OPTIMAL:
         print("An OPTIMAL TEAM has been found for a BUDGET of %i€" %total_budget)
@@ -279,11 +281,12 @@ def club_score(club, formation="1433", score="Special"):
     return mean, mean - sd, mean + sd, sd
 
 
-def investment_outcome(start=275000, end=10**8, num=5, goodness_score="Special",
+def investment_outcome(data, start=275000, end=10**8, num=5, goodness_score="Special",
                        formation = "1442", lines={"color":"green","lty":"-"}):
     """
     Function to visualize how mean optimal score behaves for increasing total_budget
 
+    :param data: pandas.DataFrame with the player information
     :param start: minimum total_budget
     :param end: maximum total_budget
     :param num: number of optimal teams to calculate, points in plot
@@ -296,7 +299,7 @@ def investment_outcome(start=275000, end=10**8, num=5, goodness_score="Special",
     x_budget2 = np.linspace(start=end/3, stop=end, num=num//2+1)
     x_budget = np.array(list(x_budget1)+list(x_budget2)[1:])
     # > Calculate the optimal [mean_score, score_stdev] for all Total Budgets
-    investemt_performance = list(map(lambda x: mean_team_score(optimal_team(total_budget=x,
+    investemt_performance = list(map(lambda x: mean_team_score(optimal_team(data, total_budget=x,
                                                                             goodness_score=goodness_score,
                                                                             formation=formation)[0]), x_budget))
     # > Take mean and stdev to arrays
