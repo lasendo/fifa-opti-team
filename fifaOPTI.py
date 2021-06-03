@@ -19,48 +19,56 @@
 #                       2- Data loading
 #                       4- Cleaning
 #                       9- Method 3: MILP Optimization
-##                          I) Implement model of optimal team (optimal_team function)
-##                         II) Investment outcome
-###                             + Plot mean optimal score for different total budgets
-##                        III) Reference of clubs' scores
-###                             + Plot distributions
+#                          I) Implement model of optimal team (optimal_team function)
+#                         II) Investment outcome
+#                             + Plot mean optimal score for different total budgets
+#                        III) Reference of clubs' scores
+#                             + Plot distributions
 ##########################################################################################
 # ------------------------------------------------------------------------------------
 # 1- IMPORTING
 # ------------------------------------------------------------------------------------
-import pandas as pd
-import numpy as np
-import statistics
-import matplotlib.pyplot as plt
 import re
+import statistics
+
+import numpy as np
 from ortools.linear_solver import pywraplp # optimization module
+import pandas as pd
+import matplotlib.pyplot as plt
+
 # ------------------------------------------------------------------------------------
 # 2- DATA LOADING
 # ------------------------------------------------------------------------------------
-path_fifa = "C:\\Users\\win10\\Documents\\STRATHCLYDE\\3- Big Data Fundamentals\\1- Assignment\\fifa19\\"
+# TODO: if possible, read data directly from the web
+path_fifa = r'C:/Users/win10/Documents/STRATHCLYDE\\3- Big Data Fundamentals\\1- Assignment\\fifa19\\'
 name_fifa = "data_fifa.csv"
-fifa_original = pd.read_csv(path_fifa+name_fifa)
+fifa_original = pd.read_csv(path_fifa + name_fifa)
 fifa = fifa_original.copy()
 # Indicate path where pdf figures should be created
-path_out = "C:\\Users\\win10\\PycharmProjects\\BigDataFundamentls\\Project 1\\Output\\"
-path_opt = path_out+"Optimization\\"
+path_out = r'C:/Users/win10/PycharmProjects/BigDataFundamentals/Project 1/Output/'
+path_opt = path_out + r'Optimization/'
+
+
 # ------------------------------------------------------------------------------------
 # 4- CLEANING
 # ------------------------------------------------------------------------------------
-# > Clean value column price: Charater M and K to million and thousan euros
+# > Clean value column price: Charater M and K to million and thousand euros
 def clean_value(value_string):
     if value_string[-1] == "M": # Million
-        return (float(value_string[0:-1]) * 10 ** 6)
+        return float(value_string[0:-1]) * 10 ** 6
     elif value_string[-1] == "K": # Thousand
-        return (float(value_string[0:-1]) * 10 ** 3)
+        return float(value_string[0:-1]) * 10 ** 3
     else:
-        return (float(value_string))
+        return float(value_string)
+
 fifa["Value_clean"] = fifa.Value.map(lambda x: clean_value(re.sub(r'€', '', x)))
 fifa["Wage_clean"] = fifa.Wage.map(lambda x: clean_value(re.sub(r'€', '', x)))
 # -------------------------------------------------------------------------------
 # MIXED INTEGER LINEAR PROGRAMMING (MILP) Optimization
 # -------------------------------------------------------------------------------
 # I) Implement model of optimal team (optimal_team function)
+
+
 def optimal_team(total_budget = 10000, goodness_score="Special", formation = "1433"):
     """
     Function to calculate the OPTIMAL TEAM given a limited total budget
@@ -106,21 +114,22 @@ def optimal_team(total_budget = 10000, goodness_score="Special", formation = "14
     # > SET PARAMETERS according to FORMATION:
     #          + position of players,
     #          + amount of players per position
-    formations = ["1433","1442"]
+    formations = ["1433", "1442"]
     if formation == "1433":
-        posi = ["GK","CB","LB","RB","CM","ST"]
-        posi_fixed = {"GK": 1,"CB": 2, "LB": 1,"RB": 1,"CM": 3,"ST": 3}
+        posi = ["GK", "CB", "LB", "RB", "CM", "ST"]
+        posi_fixed = {"GK": 1, "CB": 2, "LB": 1, "RB": 1, "CM": 3, "ST": 3}
     elif formation == "1442":
-        posi = ["GK","CB","LB","RB","CM","LM","RM","ST"]
-        posi_fixed = {"GK": 1,"CB": 2, "LB": 1,"RB": 1,"CM": 2,"LM":1,"RM":1,"ST": 2}
+        posi = ["GK", "CB", "LB", "RB", "CM", "LM", "RM", "ST"]
+        posi_fixed = {"GK": 1, "CB": 2, "LB": 1, "RB": 1, "CM": 2, "LM": 1, "RM": 1, "ST": 2}
     elif formation[0] == "-":
-        posi=[formation[1:]]
+        posi = [formation[1:]]
         posi_fixed = {formation[1:]: 1}
     else:
         raise ValueError("Please enter a valid formation in ", formations)
 
     posi_players = {}
     for position in posi:
+        # TODO: clarify what is PP
         if position in PP.keys():
             posi_players[position] = PP[position]
 
@@ -128,12 +137,12 @@ def optimal_team(total_budget = 10000, goodness_score="Special", formation = "14
 
     # > DATA to DICTionaries since they are easy to access
     def clean_value(value_string):
-        if value_string[-1]=="M":
-            return(float(value_string[0:-1])*10**6)
-        elif value_string[-1]=="K":
-            return(float(value_string[0:-1])*10**3)
+        if value_string[-1] == "M":
+            return float(value_string[0:-1]) * 10 ** 6
+        elif value_string[-1] == "K":
+            return float(value_string[0:-1]) * 10 ** 3
         else:
-            return(float(value_string))
+            return float(value_string)
 
     # Make square data:
     #  The varible for player selection must be a square matrix.
@@ -144,28 +153,28 @@ def optimal_team(total_budget = 10000, goodness_score="Special", formation = "14
     #  players into account, sice they are not in the feasible set.
 
     # Two functions fill these values:
-    def cancell_score(vec,max):
+    def cancell_score(vec, max_val):
         aux = vec
-        while len(aux) < max:
+        while len(aux) < max_val:
             aux.append(-100.0)
-        return(aux)
+        return aux
 
-    def cancell_price(vec,max):
+    def cancell_price(vec, max_val):
         aux = vec
-        while len(aux) < max:
+        while len(aux) < max_val:
             aux.append(2*total_budget)
-        return(aux)
+        return aux
 
     # > Record the data to dictionaries
-    names  = {}
+    names = {}
     scores = {}
-    price  = {}
+    price = {}
     for position in posi:
-        fifa_position_df =  fifa[fifa.Position == position]
+        fifa_position_df = fifa[fifa.Position == position]
         names[position] = fifa_position_df.Name.to_list()
-        scores[position] = cancell_score(fifa_position_df[goodness_score].to_list(),max_players)
+        scores[position] = cancell_score(fifa_position_df[goodness_score].to_list(), max_players)
         aux_value = fifa_position_df.Value.to_list()
-        price[position] = cancell_price(list(map(lambda x: clean_value(x.replace("€","")),aux_value)),max_players)
+        price[position] = cancell_price(list(map(lambda x: clean_value(x.replace("€", "")), aux_value)), max_players)
 
     # > Some players' value is 0€, to neglect those we change the prize to be
     #    non-affordable
@@ -189,7 +198,8 @@ def optimal_team(total_budget = 10000, goodness_score="Special", formation = "14
 
     # > RESTRICTIONS
     # >> Limited budget
-    solver.Add((total_budget - solver.Sum([ price[posi[ii]][jj] * x[ii, jj] for ii in range(len(posi)) for jj in range(max_players)])) >=0.0 )
+    solver.Add((total_budget - solver.Sum([price[posi[ii]][jj] * x[ii, jj]
+                                           for ii in range(len(posi)) for jj in range(max_players)])) >= 0.0)
     # >> Amount of players in each position
     for ii in range(len(posi)):
         solver.Add(solver.Sum([x[ii, jj] for jj in range(posi_players[posi[ii]])]) == posi_fixed[posi[ii]])
@@ -197,10 +207,10 @@ def optimal_team(total_budget = 10000, goodness_score="Special", formation = "14
     # > SOLVE
     sol = solver.Solve()
     # >> Check feasibility
-    if (sol == solver.INFEASIBLE):
+    if sol == solver.INFEASIBLE:
         print("The problem is not feasible, there is no solution.")
         raise EnvironmentError("The problem is not feasible")
-    elif (sol == solver.OPTIMAL):
+    elif sol == solver.OPTIMAL:
         print("An OPTIMAL TEAM has been found for a BUDGET of %i€" %total_budget)
         print("")
 
@@ -222,7 +232,7 @@ def optimal_team(total_budget = 10000, goodness_score="Special", formation = "14
 
         remaining_budget = (total_budget - spent_budget)
 
-    return([team_score, spent_budget, remaining_budget])
+    return team_score, spent_budget, remaining_budget
 
 def mean_team_score(team_score, attribute = "score"):
     """
@@ -236,7 +246,7 @@ def mean_team_score(team_score, attribute = "score"):
     value_list = []
     for key in team_score.keys():
         value_list.append(team_score[key][attribute])
-    return([statistics.mean(value_list),statistics.stdev(value_list)])
+    return statistics.mean(value_list), statistics.stdev(value_list)
 
 
 def club_score(club, formation="1433", score="Special"):
@@ -293,10 +303,11 @@ def club_score(club, formation="1433", score="Special"):
     mean = statistics.mean(scores_team)
     sd = statistics.stdev(scores_team)
 
-    return ([mean, mean - sd, mean + sd, sd])
+    return mean, mean - sd, mean + sd, sd
 
 
-def investment_outcome(start=275000,end=10**8,num=5,goodness_score="Special",formation = "1442",lines={"color":"green","lty":"-"}):
+def investment_outcome(start=275000, end=10**8, num=5, goodness_score="Special",
+                       formation = "1442", lines={"color":"green","lty":"-"}):
     """
     Function to visualize how mean optimal score behaves for increasing total_budget
 
@@ -310,18 +321,26 @@ def investment_outcome(start=275000,end=10**8,num=5,goodness_score="Special",for
     # > Divide the budget axis with two different densities
     x_budget1 = np.linspace(start=start,stop=end/3, num= num//2)
     x_budget2 = np.linspace(start=end/3, stop=end, num=num//2+1)
-    x_budget =  np.array(list(x_budget1)+list(x_budget2)[1:])
+    x_budget = np.array(list(x_budget1)+list(x_budget2)[1:])
     # > Calculate the optimal [mean_score, score_stdev] for all Total Budgets
-    investemt_performance = list( map(lambda x: mean_team_score(optimal_team(total_budget=x,
-                                        goodness_score=goodness_score,formation=formation)[0]), x_budget) )
+    investemt_performance = list(map(lambda x: mean_team_score(optimal_team(total_budget=x,
+                                                                            goodness_score=goodness_score,
+                                                                            formation=formation)[0]), x_budget))
     # > Take mean and stdev to arrays
     investemt_performance_mean = [investemt_performance[jj][0] for jj in range(len(investemt_performance))]
     investemt_performance_stdev = [investemt_performance[jj][1] for jj in range(len(investemt_performance))]
 
     # > Plot errorbar using mean and stdev
     x_budget = np.array([budget / 10 ** 6 for budget in list(x_budget)])
-    plt.errorbar(x_budget,investemt_performance_mean,yerr=investemt_performance_stdev,c=lines["color"],
-             linestyle=lines["lty"],label=(formation+"_formation"),barsabove=True,marker="s",alpha=0.5)
+    plt.errorbar(x_budget,
+                 investemt_performance_mean,
+                 yerr=investemt_performance_stdev,
+                 c=lines["color"],
+                 linestyle=lines["lty"],
+                 label=(formation+"_formation"),
+                 barsabove=True,  # include bars
+                 marker="s",  # square marker
+                 alpha=0.5)  # add transparency
 
 
 # -------------------------------------------------------------------------------
@@ -361,13 +380,14 @@ plt.close()
 #        + With default formation
 #        + With default *score*=Special
 # Example for a small set:
-#  > few_club_list = ["FC Barcelona","Real Madrid","Manchester City","Manchester United"]
+#  > few_club_list = ["FC Barcelona", "Real Madrid", "Manchester City", "Manchester United"]
 #  > for cb in few_club_list:
 #  > print(cb, club_score(cb))
 # -----------------------------------------
 # > Calculate mean scores of ALL clubs:
 #      + With different formations
 #      + With different *scores*={Special, Overall}
+
 club_list = fifa.Club.unique()
 special_club1433 = {}
 special_club1442 = {}
@@ -382,15 +402,17 @@ for cb in club_list:
     except:
         print("There is not such club in the dataset")
 
-special_club_pd = pd.DataFrame(data={"club_list": list(special_club1433.keys()),"1433":list(special_club1433.values()),
-                                "1442": list(special_club1442.values())})
-overall_club_pd = pd.DataFrame(data={"club_list": list(overall_club1433.keys()),"1433":list(overall_club1433.values()),
-                                "1442": list(overall_club1442.values())})
+special_club_pd = pd.DataFrame(data={"club_list": list(special_club1433.keys()),
+                                     "1433":list(special_club1433.values()),
+                                     "1442": list(special_club1442.values())})
+overall_club_pd = pd.DataFrame(data={"club_list": list(overall_club1433.keys()),
+                                     "1433":list(overall_club1433.values()),
+                                     "1442": list(overall_club1442.values())})
 # > Plot distributions
 # >>> Special
 special_club_pd.boxplot()
 plt.title("Distribution of mean Special for the 651 clubs")
-plt.ylim(1150,2300)
+plt.ylim(1150, 2300)
 plt.xlabel("Formation")
 plt.ylabel("mean Special of team")
 plt.savefig(path_opt+"SpecialMeanBoxplot.pdf")
@@ -400,7 +422,7 @@ overall_club_pd.boxplot()
 plt.title("Distribution of mean Overall for the 651 clubs")
 plt.xlabel("Formation")
 plt.ylabel("mean Overall of team")
-plt.ylim(50,90)
+plt.ylim(50, 90)
 plt.savefig(path_opt+"OverallMeanBoxplot.pdf")
 plt.close()
 
